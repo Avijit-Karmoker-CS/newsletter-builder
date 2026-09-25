@@ -24,9 +24,13 @@ class SectionOut(BaseModel):
     sort_order: int
     title: Optional[str] = None
     body: Optional[str] = None
+    ai_topic: Optional[str] = None
+    ai_instructions: Optional[str] = None
     image_urls: List[str] = Field(default_factory=list)
     saved: bool
     saved_at: Optional[datetime] = None
+    lead_decision: Optional[str] = None
+    review_sent_at: Optional[datetime] = None
     comments: List[CommentOut] = Field(default_factory=list)
 
     model_config = {"from_attributes": True}
@@ -52,11 +56,25 @@ class NewsletterOut(BaseModel):
     section_count: int
     mailchimp_campaign_id: Optional[str] = None
     mailchimp_editor_url: Optional[str] = None
+    lead_slack_email: Optional[str] = None
+    review_token: Optional[str] = None
+    last_step: Optional[str] = None
+    review_requested_at: Optional[datetime] = None
+    denied_at: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
     sent_at: Optional[datetime] = None
+    slack_share_url: Optional[str] = None
     sections: List[SectionOut] = Field(default_factory=list)
     review_events: List[ReviewEventOut] = Field(default_factory=list)
+
+    model_config = {"from_attributes": True}
+
+
+class LeadNoteOut(BaseModel):
+    section_id: UUID
+    section_title: str
+    body: str
 
     model_config = {"from_attributes": True}
 
@@ -70,9 +88,13 @@ class NewsletterSummary(BaseModel):
     section_count: int
     mailchimp_campaign_id: Optional[str] = None
     mailchimp_editor_url: Optional[str] = None
+    last_step: Optional[str] = None
+    review_requested_at: Optional[datetime] = None
+    denied_at: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
     sent_at: Optional[datetime] = None
+    lead_notes: List[LeadNoteOut] = Field(default_factory=list)
 
     model_config = {"from_attributes": True}
 
@@ -92,12 +114,15 @@ class NewsletterUpdate(BaseModel):
     issue_date: Optional[date] = None
     background_url: Optional[str] = None
     status: Optional[NewsletterStatus] = None
+    last_step: Optional[str] = None
 
 
 class SectionUpdate(BaseModel):
     layout_key: Optional[str] = None
     title: Optional[str] = None
     body: Optional[str] = None
+    ai_topic: Optional[str] = None
+    ai_instructions: Optional[str] = None
     image_urls: Optional[List[str]] = None
     saved: Optional[bool] = None
     sort_order: Optional[int] = None
@@ -108,9 +133,51 @@ class CommentCreate(BaseModel):
     body: str = Field(min_length=1)
 
 
+class ReviewRequestIn(BaseModel):
+    lead_email: str = Field(min_length=3)
+
+
+class SectionRecommendation(BaseModel):
+    section_id: UUID
+    body: str = Field(min_length=1)
+
+
+class RecommendationsIn(BaseModel):
+    comments: List[SectionRecommendation] = Field(min_length=1)
+
+
+class LeadOption(BaseModel):
+    id: UUID
+    email: str
+    name: str
+
+
 class GenerateRequest(BaseModel):
     topic: Optional[str] = None
+    instructions: Optional[str] = ""
     tone: Optional[str] = "friendly"
+
+
+class SourceClip(BaseModel):
+    title: str
+    excerpt: str
+    url: str
+    source: str
+
+
+class SearchIn(BaseModel):
+    query: str = Field(min_length=1)
+
+
+class SearchOut(BaseModel):
+    query: str
+    results: List[SourceClip] = Field(default_factory=list)
+
+
+class ProfileUpdate(BaseModel):
+    mailchimp_email: str = Field(min_length=3)
+    slack_email: str = Field(min_length=3)
+    ai_tool: str = Field(pattern="^(claude|cursor)$")
 
 
 class WorkspaceOut(BaseModel):
@@ -122,6 +189,7 @@ class WorkspaceOut(BaseModel):
     headline_style: Optional[str] = None
     ai_provider: Optional[str] = None
     ai_model: Optional[str] = None
+    slack_connected: bool = False
 
     model_config = {"from_attributes": True}
 
@@ -134,6 +202,7 @@ class WorkspaceUpdate(BaseModel):
     headline_style: Optional[str] = None
     ai_provider: Optional[str] = None
     ai_model: Optional[str] = None
+    slack_bot_token: Optional[str] = None
 
 
 class UserOut(BaseModel):
@@ -141,6 +210,10 @@ class UserOut(BaseModel):
     email: str
     name: str
     role: UserRole
+    mailchimp_email: Optional[str] = None
+    slack_email: Optional[str] = None
+    ai_tool: Optional[str] = None
+    has_password: bool = False
     workspace: WorkspaceOut
 
     model_config = {"from_attributes": True}

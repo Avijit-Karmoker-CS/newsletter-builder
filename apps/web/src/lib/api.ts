@@ -1,12 +1,15 @@
-export const API_URL =
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const DIRECT_API = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
+
+/** Browser calls go through the Next.js app so the login cookie stays on this site. */
+export function apiUrl(path: string): string {
+  const normalized = path.startsWith("/") ? path : `/${path}`;
+  if (typeof window === "undefined") return `${DIRECT_API}${normalized}`;
+  return `/backend${normalized}`;
+}
+
+export const API_URL = DIRECT_API;
 
 export type Role = "bader" | "lead";
-
-export const TOKENS: Record<Role, string> = {
-  bader: "bader-demo-token",
-  lead: "lead-demo-token",
-};
 
 export type SectionType =
   | "news"
@@ -21,7 +24,8 @@ export type NewsletterStatus =
   | "changes_requested"
   | "review_complete"
   | "ready_to_send"
-  | "sent";
+  | "sent"
+  | "denied";
 
 export type Comment = {
   id: string;
@@ -38,9 +42,13 @@ export type Section = {
   sort_order: number;
   title: string | null;
   body: string | null;
+  ai_topic?: string | null;
+  ai_instructions?: string | null;
   image_urls: string[];
   saved: boolean;
   saved_at: string | null;
+  lead_decision?: "pending" | "changes" | "approved" | "queued" | null;
+  review_sent_at?: string | null;
   comments: Comment[];
 };
 
@@ -62,17 +70,31 @@ export type Newsletter = {
   section_count: number;
   mailchimp_campaign_id: string | null;
   mailchimp_editor_url: string | null;
+  lead_slack_email?: string | null;
+  review_token?: string | null;
+  last_step?: string | null;
+  review_requested_at?: string | null;
+  denied_at?: string | null;
   created_at: string;
   updated_at: string;
   sent_at: string | null;
+  slack_share_url?: string | null;
   sections: Section[];
   review_events: ReviewEvent[];
+};
+
+export type LeadNote = {
+  section_id: string;
+  section_title: string;
+  body: string;
 };
 
 export type NewsletterSummary = Omit<
   Newsletter,
   "sections" | "review_events" | "background_url"
->;
+> & {
+  lead_notes?: LeadNote[];
+};
 
 export type Workspace = {
   id: string;
@@ -83,6 +105,7 @@ export type Workspace = {
   headline_style: string | null;
   ai_provider: string | null;
   ai_model: string | null;
+  slack_connected?: boolean;
 };
 
 export type User = {
@@ -90,43 +113,51 @@ export type User = {
   email: string;
   name: string;
   role: Role;
+  mailchimp_email?: string | null;
+  slack_email?: string | null;
+  ai_tool?: "claude" | "cursor" | string | null;
+  has_password?: boolean;
   workspace: Workspace;
 };
 
-function getToken(): string {
-  if (typeof window === "undefined") return TOKENS.bader;
-  const role = (localStorage.getItem("nb_role") as Role) || "bader";
-  return localStorage.getItem("nb_token") || TOKENS[role];
-}
+export type SourceClip = {
+  title: string;
+  excerpt: string;
+  url: string;
+  source: string;
+};
 
-export function setRole(role: Role) {
-  localStorage.setItem("nb_role", role);
-  localStorage.setItem("nb_token", TOKENS[role]);
-}
+export type LeadOption = {
+  id: string;
+  email: string;
+  name: string;
+};
 
 export function getRole(): Role {
-  if (typeof window === "undefined") return "bader";
-  return (localStorage.getItem("nb_role") as Role) || "bader";
+  return "bader";
 }
 
 export function assetUrl(path: string | null | undefined): string {
   if (!path) return "";
   if (path.startsWith("http")) return path;
-  return `${API_URL}${path}`;
+  return apiUrl(path);
 }
 
 async function request<T>(
   path: string,
-  options: RequestInit = {}
+  options: RequestInit & { auth?: boolean } = {}
 ): Promise<T> {
-  const headers = new Headers(options.headers || {});
-  if (!headers.has("Authorization")) {
-    headers.set("Authorization", `Bearer ${getToken()}`);
-  }
-  if (options.body && !(options.body instanceof FormData) && !headers.has("Content-Type")) {
+  const rest = { ...options };
+  delete rest.auth;
+  const headers = new Headers(rest.headers || {});
+  if (rest.body && !(rest.body instanceof FormData) && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
   }
-  const res = await fetch(`${API_URL}${path}`, { ...options, headers });
+  const res = await fetch(apiUrl(path), {
+    ...rest,
+    headers,
+    credentials: "include",
+  });
   if (!res.ok) {
     let detail = res.statusText;
     try {
@@ -142,9 +173,30 @@ async function request<T>(
 }
 
 export const api = {
+  authStatus: () => request<{ password_set: boolean }>("/auth/status", { auth: false }),
+  register: (body: {
+    email: string;
+    password: string;
+    mailchimp_email: string;
+    slack_email: string;
+    ai_tool: "claude" | "cursor";
+  }) => request<User>("/auth/register", { method: "POST", body: JSON.stringify(body), auth: false }),
+  login: (email: string, password: string) =>
+    request<User>("/auth/login", {
+      method: "POST",
+      body: JSON.stringify({ email, password }),
+      auth: false,
+    }),
+  logout: () => request<{ ok: boolean }>("/auth/logout", { method: "POST" }),
   me: () => request<User>("/me"),
+  updateProfile: (body: {
+    mailchimp_email: string;
+    slack_email: string;
+    ai_tool: "claude" | "cursor";
+  }) => request<User>("/me", { method: "PATCH", body: JSON.stringify(body) }),
+  listLeads: () => request<LeadOption[]>("/leads"),
   workspace: () => request<Workspace>("/workspace"),
-  updateWorkspace: (body: Partial<Workspace>) =>
+  updateWorkspace: (body: Partial<Workspace> & { slack_bot_token?: string }) =>
     request<Workspace>("/workspace", { method: "PATCH", body: JSON.stringify(body) }),
   listNewsletters: (status?: NewsletterStatus) =>
     request<NewsletterSummary[]>(
@@ -167,10 +219,20 @@ export const api = {
       method: "PATCH",
       body: JSON.stringify(body),
     }),
-  generateSection: (nlId: string, sectionId: string, topic?: string) =>
+  searchSources: (nlId: string, sectionId: string, query: string) =>
+    request<{ query: string; results: SourceClip[] }>(
+      `/newsletters/${nlId}/sections/${sectionId}/search`,
+      { method: "POST", body: JSON.stringify({ query }) }
+    ),
+  generateSection: (
+    nlId: string,
+    sectionId: string,
+    topic: string,
+    instructions: string
+  ) =>
     request<{ body: string }>(`/newsletters/${nlId}/sections/${sectionId}/generate`, {
       method: "POST",
-      body: JSON.stringify({ topic }),
+      body: JSON.stringify({ topic, instructions }),
     }),
   uploadSectionImage: async (nlId: string, sectionId: string, file: File) => {
     const fd = new FormData();
@@ -188,8 +250,38 @@ export const api = {
       { method: "POST", body: fd }
     );
   },
-  requestReview: (id: string) =>
-    request<Newsletter>(`/newsletters/${id}/review/request`, { method: "POST" }),
+  requestReview: (id: string, leadEmail: string) =>
+    request<Newsletter>(`/newsletters/${id}/review/request`, {
+      method: "POST",
+      body: JSON.stringify({ lead_email: leadEmail }),
+    }),
+  confirmChanges: (id: string) =>
+    request<Newsletter>(`/newsletters/${id}/review/confirm-changes`, { method: "POST" }),
+  resubmitReview: (id: string) =>
+    request<Newsletter>(`/newsletters/${id}/review/resubmit`, { method: "POST" }),
+  urgentReview: (id: string) =>
+    request<Newsletter>(`/newsletters/${id}/review/urgent`, { method: "POST" }),
+  releaseToCommunity: (id: string) =>
+    request<Newsletter>(`/newsletters/${id}/review/release`, { method: "POST" }),
+  queueSection: (id: string, sectionId: string) =>
+    request<Newsletter>(`/newsletters/${id}/sections/${sectionId}/queue`, { method: "POST" }),
+  publicReview: (token: string) =>
+    request<Newsletter>(`/public/reviews/${token}`, { auth: false }),
+  publicApprove: (token: string) =>
+    request<Newsletter>(`/public/reviews/${token}/approve`, { method: "POST", auth: false }),
+  publicDeny: (token: string) =>
+    request<Newsletter>(`/public/reviews/${token}/deny`, { method: "POST", auth: false }),
+  publicApproveSection: (token: string, sectionId: string) =>
+    request<Newsletter>(`/public/reviews/${token}/sections/${sectionId}/approve`, {
+      method: "POST",
+      auth: false,
+    }),
+  publicRecommendations: (token: string, comments: { section_id: string; body: string }[]) =>
+    request<Newsletter>(`/public/reviews/${token}/recommendations`, {
+      method: "POST",
+      auth: false,
+      body: JSON.stringify({ comments }),
+    }),
   approveReview: (id: string) =>
     request<Newsletter>(`/newsletters/${id}/review/approve`, { method: "POST" }),
   demoRequestChanges: (id: string, sectionIndex: number, body: string) =>
@@ -240,4 +332,5 @@ export const STATUS_LABELS: Record<NewsletterStatus, string> = {
   review_complete: "Review complete",
   ready_to_send: "Ready to send",
   sent: "Sent",
+  denied: "Lead denied",
 };

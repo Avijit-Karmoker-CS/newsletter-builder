@@ -317,6 +317,30 @@ textarea {
   background: #eef8f6;
 }
 
+.section-focus {
+  outline: 2px solid var(--warn);
+}
+
+.source-clips {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.source-clip {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.7rem;
+  align-items: start;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0.7rem 0.8rem;
+  background: #f7fbfa;
+}
+
+.source-clip p {
+  margin: 0.35rem 0;
+}
+
 .comment {
   border-left: 3px solid var(--warn);
   padding: 0.6rem 0.8rem;
@@ -358,4 +382,55 @@ textarea {
 .success {
   color: var(--ok);
   font-weight: 600;
+}
+
+.voice-control {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-start;
+  width: 100%;
+}
+
+.voice-control-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.voice-control-input input,
+.voice-control-input textarea {
+  width: 100%;
+}
+
+.voice-side {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  align-items: flex-start;
+  max-width: 11rem;
+}
+
+.voice-btn {
+  appearance: none;
+  border: 1px solid #b7d9d4;
+  background: #e7f3f1;
+  color: var(--ink);
+  border-radius: 999px;
+  padding: 0.55rem 0.85rem;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.voice-btn.listening {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: white;
+}
+
+.voice-hint {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+  line-height: 1.3;
 }

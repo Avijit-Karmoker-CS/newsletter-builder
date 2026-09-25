@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { SECTION_LABELS, api, type SectionType } from "@/lib/api";
+import { VoiceControl } from "@/components/VoiceControl";
 
 const TYPES = Object.keys(SECTION_LABELS) as SectionType[];
 
@@ -53,7 +54,9 @@ export default function NewNewsletterPage() {
       <form className="panel stack" onSubmit={onSubmit}>
         <label>
           Working title
-          <input value={title} onChange={(e) => setTitle(e.target.value)} required />
+          <VoiceControl value={title} onChange={setTitle}>
+            <input value={title} onChange={(e) => setTitle(e.target.value)} required />
+          </VoiceControl>
         </label>
 
         <label>

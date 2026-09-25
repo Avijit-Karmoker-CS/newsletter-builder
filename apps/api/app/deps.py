@@ -1,38 +1,33 @@
 from __future__ import annotations
 
-from fastapi import Depends, Header, HTTPException, status
+from fastapi import Cookie, Depends, Header, HTTPException, status
 from sqlalchemy.orm import Session, joinedload
 
-from app.config import Settings, get_settings
 from app.database import get_db
 from app.models import User, UserRole
+from app.services.passwords import user_for_token
 
 
 def get_current_user(
     authorization: str | None = Header(default=None),
+    nb_session: str | None = Cookie(default=None),
     db: Session = Depends(get_db),
-    settings: Settings = Depends(get_settings),
 ) -> User:
-    if not authorization or not authorization.lower().startswith("bearer "):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing bearer token")
-    token = authorization.split(" ", 1)[1].strip()
-    email = None
-    if token == settings.demo_bader_token:
-        email = "bader@example.com"
-    elif token == settings.demo_lead_token:
-        email = "lead@example.com"
-    else:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
-
-    user = (
+    token = nb_session
+    if not token and authorization and authorization.lower().startswith("bearer "):
+        token = authorization.split(" ", 1)[1].strip()
+    user = user_for_token(db, token)
+    if not user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Sign in required")
+    loaded = (
         db.query(User)
         .options(joinedload(User.workspace))
-        .filter(User.email == email)
+        .filter(User.id == user.id)
         .first()
     )
-    if not user:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not seeded")
-    return user
+    if not loaded:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Sign in required")
+    return loaded
 
 
 def require_bader(user: User = Depends(get_current_user)) -> User:

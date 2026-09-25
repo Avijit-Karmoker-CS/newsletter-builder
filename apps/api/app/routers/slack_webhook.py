@@ -58,6 +58,9 @@ async def slack_interactions(
             return {"ok": False}
 
         if action["action_id"] == "approve":
+            for section in nl.sections:
+                if section.lead_decision != "queued":
+                    section.lead_decision = "approved"
             nl.status = NewsletterStatus.review_complete
             db.add(
                 ReviewEvent(

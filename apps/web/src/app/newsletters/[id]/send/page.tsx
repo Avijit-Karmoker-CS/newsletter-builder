@@ -2,8 +2,8 @@
 
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
-import { api, type Newsletter } from "@/lib/api";
-import { StatusPill, WizardNav } from "@/components/Shell";
+import { SECTION_LABELS, api, assetUrl, type Newsletter } from "@/lib/api";
+import { StatusPill, WizardNav, useLeaveFinishedWizard } from "@/components/Shell";
 
 export default function SendPage() {
   const { id } = useParams<{ id: string }>();
@@ -50,13 +50,15 @@ export default function SendPage() {
     }
   }
 
+  useLeaveFinishedWizard(nl?.status);
+
   if (!nl && !error) return <p className="muted">Loading…</p>;
   if (!nl) return <p className="error">{error}</p>;
+  if (nl.status === "sent") {
+    return <p className="muted">This issue is sent. Opening the dashboard…</p>;
+  }
 
-  const canSync =
-    nl.status === "review_complete" ||
-    nl.status === "ready_to_send" ||
-    nl.status === "sent";
+  const canSync = nl.status === "review_complete" || nl.status === "ready_to_send";
 
   return (
     <div className="stack">
@@ -65,11 +67,33 @@ export default function SendPage() {
         <div>
           <h1>Send to community</h1>
           <p className="lede">
-            Sync content into Mailchimp for final template polish, schedule, and
-            tracking. Confirm here after you send.
+            Read the final copy below, then sync it to Mailchimp and confirm the
+            community send.
           </p>
         </div>
         <StatusPill status={nl.status} />
+      </div>
+
+      <div className="preview-shell">
+        <div
+          className="preview-hero"
+          style={{
+            backgroundImage: nl.background_url
+              ? `linear-gradient(rgba(15,30,28,0.45), rgba(15,30,28,0.55)), url(${assetUrl(nl.background_url)})`
+              : undefined,
+          }}
+        >
+          <h2 style={{ margin: 0 }}>{nl.headline || nl.title}</h2>
+          <p style={{ marginTop: "0.5rem" }}>{nl.issue_date}</p>
+        </div>
+        {nl.sections.map((section) => (
+          <div key={section.id} className="preview-section">
+            <h3 style={{ marginTop: 0 }}>
+              {section.title || SECTION_LABELS[section.section_type]}
+            </h3>
+            <p style={{ whiteSpace: "pre-wrap" }}>{section.body}</p>
+          </div>
+        ))}
       </div>
 
       <section className="panel stack">
@@ -100,7 +124,7 @@ export default function SendPage() {
         <button
           className="secondary"
           type="button"
-          disabled={!nl.mailchimp_campaign_id || busy || nl.status === "sent"}
+          disabled={!nl.mailchimp_campaign_id || busy}
           onClick={confirm}
         >
           Confirm community send

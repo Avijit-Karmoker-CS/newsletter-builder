@@ -3,7 +3,8 @@
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { api, assetUrl, type Newsletter } from "@/lib/api";
-import { WizardNav } from "@/components/Shell";
+import { WizardNav, useLeaveFinishedWizard } from "@/components/Shell";
+import { VoiceControl } from "@/components/VoiceControl";
 
 export default function ChromePage() {
   const { id } = useParams<{ id: string }>();
@@ -14,16 +15,31 @@ export default function ChromePage() {
   const [error, setError] = useState("");
   const [msg, setMsg] = useState("");
 
+  const ready = useState({ current: false })[0];
+  const newsletterId = nl?.id;
+
   useEffect(() => {
+    ready.current = false;
     api
       .getNewsletter(id)
       .then((n) => {
         setNl(n);
         setHeadline(n.headline || n.title);
         setIssueDate(n.issue_date || new Date().toISOString().slice(0, 10));
+        window.setTimeout(() => {
+          ready.current = true;
+        }, 0);
       })
       .catch((e) => setError(e.message));
-  }, [id]);
+  }, [id, ready]);
+
+  useEffect(() => {
+    if (!newsletterId || !ready.current) return;
+    const handle = window.setTimeout(() => {
+      api.updateNewsletter(newsletterId, { headline, issue_date: issueDate }).catch(() => {});
+    }, 700);
+    return () => window.clearTimeout(handle);
+  }, [headline, issueDate, newsletterId, ready]);
 
   async function saveMeta() {
     if (!nl) return;
@@ -57,8 +73,13 @@ export default function ChromePage() {
     }
   }
 
+  useLeaveFinishedWizard(nl?.status);
+
   if (!nl && !error) return <p className="muted">Loading…</p>;
   if (!nl) return <p className="error">{error}</p>;
+  if (nl.status === "sent") {
+    return <p className="muted">This issue is sent. Opening the dashboard…</p>;
+  }
 
   return (
     <div className="stack">
@@ -74,7 +95,9 @@ export default function ChromePage() {
       <section className="panel stack">
         <label>
           Headline
-          <input value={headline} onChange={(e) => setHeadline(e.target.value)} />
+          <VoiceControl value={headline} onChange={setHeadline}>
+            <input value={headline} onChange={(e) => setHeadline(e.target.value)} />
+          </VoiceControl>
         </label>
         <label>
           Issue date

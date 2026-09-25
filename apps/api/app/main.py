@@ -5,9 +5,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app.config import get_settings
-from app.routers import newsletters, slack_webhook, workspace
+from app.database import ensure_schema
+from app.routers import auth, newsletters, public_review, slack_webhook, workspace
 
 settings = get_settings()
+ensure_schema()
 
 app = FastAPI(title="Newsletter Builder API", version="0.1.0")
 
@@ -19,8 +21,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(auth.router)
 app.include_router(workspace.router)
 app.include_router(newsletters.router)
+app.include_router(public_review.router)
 app.include_router(slack_webhook.router)
 
 app.mount("/uploads", StaticFiles(directory=str(settings.upload_path)), name="uploads")

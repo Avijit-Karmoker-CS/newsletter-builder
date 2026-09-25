@@ -28,6 +28,13 @@ class Settings(BaseSettings):
     slack_signing_secret: str = ""
     slack_lead_channel: str = "#newsletter-reviews"
 
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_user: str = ""
+    smtp_password: str = ""
+    smtp_from: str = ""
+    smtp_tls: bool = True
+
     mailchimp_api_key: str = ""
     mailchimp_server_prefix: str = "us1"
     mailchimp_list_id: str = ""
@@ -36,6 +43,8 @@ class Settings(BaseSettings):
 
     openai_api_key: str = ""
     openai_model: str = "gpt-4o-mini"
+    anthropic_api_key: str = ""
+    claude_model: str = "claude-sonnet-4-5"
 
     @property
     def cors_origin_list(self) -> list[str]:

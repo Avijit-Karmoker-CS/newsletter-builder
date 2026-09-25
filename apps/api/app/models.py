@@ -38,6 +38,7 @@ class NewsletterStatus(str, enum.Enum):
     review_complete = "review_complete"
     ready_to_send = "ready_to_send"
     sent = "sent"
+    denied = "denied"
 
 
 class SectionType(str, enum.Enum):
@@ -65,7 +66,13 @@ class Workspace(Base):
     headline_style: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
     ai_provider: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
     ai_model: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    slack_bot_token: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    @property
+    def slack_connected(self) -> bool:
+        token = (self.slack_bot_token or "").strip()
+        return token.startswith("xoxb-") and len(token) >= 20
 
     users: Mapped[List["User"]] = relationship(back_populates="workspace")
     newsletters: Mapped[List["Newsletter"]] = relationship(back_populates="workspace")
@@ -79,9 +86,33 @@ class User(Base):
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
     name: Mapped[str] = mapped_column(String(120))
     role: Mapped[UserRole] = mapped_column(Enum(UserRole, native_enum=False), nullable=False)
+    mailchimp_email: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    slack_email: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    ai_tool: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
+    password_hash: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     workspace: Mapped["Workspace"] = relationship(back_populates="users")
+
+    @property
+    def has_password(self) -> bool:
+        return bool(self.password_hash)
+
+    sessions: Mapped[List["AuthSession"]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
+    )
+
+
+class AuthSession(Base):
+    __tablename__ = "auth_sessions"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=_uuid)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    user: Mapped["User"] = relationship(back_populates="sessions")
 
 
 class Newsletter(Base):
@@ -103,6 +134,11 @@ class Newsletter(Base):
     mailchimp_campaign_id: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
     mailchimp_editor_url: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
     slack_message_ts: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    last_step: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
+    review_token: Mapped[Optional[str]] = mapped_column(String(64), unique=True, nullable=True, index=True)
+    lead_slack_email: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    review_requested_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    denied_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     sent_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
@@ -134,9 +170,13 @@ class Section(Base):
     sort_order: Mapped[int] = mapped_column(Integer, default=0)
     title: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     body: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    ai_topic: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    ai_instructions: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     image_urls: Mapped[Optional[list]] = mapped_column(JSON, default=list)
     saved: Mapped[bool] = mapped_column(Boolean, default=False)
     saved_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    lead_decision: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
+    review_sent_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()

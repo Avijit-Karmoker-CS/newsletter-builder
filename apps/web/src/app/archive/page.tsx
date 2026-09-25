@@ -39,7 +39,9 @@ export default function ArchivePage() {
                 </div>
                 <div className="row">
                   <StatusPill status={n.status} />
-                  <Link href={`/newsletters/${n.id}/preview`}>Open</Link>
+                  <Link href={n.status === "sent" ? `/newsletters/${n.id}/preview?archive=1` : `/newsletters/${n.id}/preview`}>
+                    Open
+                  </Link>
                   {n.mailchimp_editor_url && (
                     <a href={n.mailchimp_editor_url} target="_blank" rel="noreferrer">
                       Mailchimp

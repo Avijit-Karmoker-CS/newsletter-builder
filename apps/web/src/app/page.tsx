@@ -46,6 +46,9 @@ export default function DashboardPage() {
       .finally(() => setLoading(false));
   }, []);
 
+  const resumable = items.filter((n) => n.status !== "sent" && n.status !== "denied");
+  const latest = [...resumable].sort((a, b) => (a.updated_at < b.updated_at ? 1 : -1))[0];
+
   return (
     <div className="stack">
       <div className="hero row" style={{ justifyContent: "space-between" }}>
@@ -60,6 +63,19 @@ export default function DashboardPage() {
           Start new newsletter
         </Link>
       </div>
+
+      {!loading && latest && (
+        <section className="panel stack">
+          <h2>Continue where you left off</h2>
+          <p className="muted">
+            Drafts, reviews, comments, and your Mailchimp and Slack setup stay
+            saved on this computer.
+          </p>
+          <Link href={continueHref(latest)} style={{ fontWeight: 700 }}>
+            {latest.title}
+          </Link>
+        </section>
+      )}
 
       {loading && <p className="muted">Loading…</p>}
       {error && <p className="error">{error}</p>}
@@ -84,7 +100,7 @@ export default function DashboardPage() {
                       </div>
                       <div className="row">
                         <StatusPill status={n.status} />
-                        <Link href={continueHref(n)}>Open</Link>
+                        <Link href={openHref(n)}>Open</Link>
                       </div>
                     </li>
                   ))}
@@ -98,7 +114,18 @@ export default function DashboardPage() {
   );
 }
 
+function openHref(n: NewsletterSummary): string {
+  if (n.status === "sent") return `/newsletters/${n.id}/preview?archive=1`;
+  return continueHref(n);
+}
+
 function continueHref(n: NewsletterSummary): string {
+  if (
+    n.last_step &&
+    ["layouts", "content", "chrome", "preview", "review", "send"].includes(n.last_step)
+  ) {
+    return `/newsletters/${n.id}/${n.last_step}`;
+  }
   switch (n.status) {
     case "drafting":
       return `/newsletters/${n.id}/layouts`;
@@ -110,6 +137,8 @@ function continueHref(n: NewsletterSummary): string {
       return `/newsletters/${n.id}/send`;
     case "sent":
       return `/newsletters/${n.id}/preview`;
+    case "denied":
+      return `/newsletters/${n.id}/review`;
     default:
       return `/newsletters/${n.id}/preview`;
   }

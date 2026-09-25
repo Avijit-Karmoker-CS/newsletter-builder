@@ -42,7 +42,12 @@ def editor_url(settings: Settings, campaign_id: str) -> str:
     )
 
 
-async def sync_campaign(settings: Settings, newsletter: Newsletter) -> dict[str, Any]:
+async def sync_campaign(
+    settings: Settings,
+    newsletter: Newsletter,
+    *,
+    reply_to: str | None = None,
+) -> dict[str, Any]:
     html = render_newsletter_html(newsletter)
 
     if not settings.mailchimp_api_key or not settings.mailchimp_list_id:
@@ -51,6 +56,7 @@ async def sync_campaign(settings: Settings, newsletter: Newsletter) -> dict[str,
         logger.info("Mailchimp demo sync for %s → %s", newsletter.id, campaign_id)
         return {"campaign_id": campaign_id, "editor_url": url, "demo": True}
 
+    reply = reply_to or settings.mailchimp_reply_to
     base = f"https://{settings.mailchimp_server_prefix}.api.mailchimp.com/3.0"
     auth = ("anystring", settings.mailchimp_api_key)
 
@@ -64,7 +70,7 @@ async def sync_campaign(settings: Settings, newsletter: Newsletter) -> dict[str,
                         "subject_line": newsletter.headline or newsletter.title,
                         "title": newsletter.title,
                         "from_name": settings.mailchimp_from_name,
-                        "reply_to": settings.mailchimp_reply_to,
+                        "reply_to": reply,
                     }
                 },
             )
@@ -78,7 +84,7 @@ async def sync_campaign(settings: Settings, newsletter: Newsletter) -> dict[str,
                         "subject_line": newsletter.headline or newsletter.title,
                         "title": newsletter.title,
                         "from_name": settings.mailchimp_from_name,
-                        "reply_to": settings.mailchimp_reply_to,
+                        "reply_to": reply,
                     },
                 },
             )

@@ -1,5 +1,34 @@
 services:
+  api:
+    build: ./apps/api
+    environment:
+      DATABASE_URL: sqlite:////data/newsletter_builder.db
+      UPLOAD_DIR: /data/uploads
+      WEB_APP_URL: ${WEB_APP_URL:-http://localhost:3000}
+      CORS_ORIGINS: ${WEB_APP_URL:-http://localhost:3000}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+      SMTP_TLS: ${SMTP_TLS:-true}
+      DEFAULT_WORKSPACE_PLAN: premium
+    volumes:
+      - appdata:/data
+    restart: unless-stopped
+
+  web:
+    build: ./apps/web
+    environment:
+      API_PROXY_URL: http://api:8000
+    ports:
+      - "${WEB_PORT:-3000}:3000"
+    depends_on:
+      - api
+    restart: unless-stopped
+
   db:
+    profiles: ["postgres"]
     image: postgres:16-alpine
     environment:
       POSTGRES_USER: newsletter
@@ -16,4 +45,5 @@ services:
       retries: 10
 
 volumes:
+  appdata:
   pgdata:

@@ -4,44 +4,44 @@ Multi-step newsletter builder for Bader and lead approvers.
 
 - **Next.js** (`apps/web`) — wizard UI, status board, archive, premium settings
 - **FastAPI** (`apps/api`) — REST API, uploads, Slack, Mailchimp, AI
-- **Postgres** — source of truth (via Docker Compose)
+- **SQLite** — stored on the server with the site (Postgres is optional)
 - **Mailchimp** — templates / drag-drop editor, schedule, opens & clicks
 - **Slack** — Approve / Request changes buttons for the lead
 
-## Quick start
+## Use it on any computer
+
+People do not install Python or Node. One server runs the site and the API. Each person opens that address, creates an account, and starts a newsletter. Review links use the same address, so a lead on another computer can open them.
+
+1. Copy `.env.example` to `.env`.
+2. Set `WEB_APP_URL` to the public address (for example `https://newsletters.example.com`).
+3. Set `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, and `SMTP_FROM` so review emails can leave the server.
+4. Point that address at this machine’s port `3000` (or `WEB_PORT`).
+5. Start the site:
 
 ```bash
-# 1. API (SQLite by default — no Docker required)
+docker compose up --build -d
+```
+
+Open `WEB_APP_URL`. Create an account, build a newsletter, and send it to the lead’s email. The lead uses the link in that email.
+
+## Local development
+
+```bash
+# API
 cd apps/api
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 cp ../../.env.example ../../.env
-python -m app.seed
 uvicorn app.main:app --reload --port 8000
 
-# Optional Postgres instead of SQLite:
-# docker compose up -d
-# set DATABASE_URL=postgresql+psycopg://newsletter:newsletter@localhost:5432/newsletter_builder
-# pip install 'psycopg[binary]>=3.2.4'
-# alembic upgrade head && python -m app.seed
-
-# 2. Web (new terminal)
+# Web (new terminal)
 cd apps/web
 npm install
 npm run dev
 ```
 
-Open http://localhost:3000
-
-Demo tokens (send as `Authorization: Bearer …`):
-
-| Role  | Token             |
-|-------|-------------------|
-| Bader | `bader-demo-token` |
-| Lead  | `lead-demo-token`  |
-
-The web app stores the role in local storage and attaches the token automatically.
+Open http://localhost:3000. For local review email, fill in the SMTP settings in `.env` and set `WEB_APP_URL` to the address the lead can actually open.
 
 ## Wizard flow
 

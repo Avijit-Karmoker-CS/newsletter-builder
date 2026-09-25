@@ -3,7 +3,7 @@
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { LAYOUTS, SECTION_LABELS, api, type Newsletter } from "@/lib/api";
-import { WizardNav } from "@/components/Shell";
+import { WizardNav, useLeaveFinishedWizard } from "@/components/Shell";
 
 export default function LayoutsPage() {
   const { id } = useParams<{ id: string }>();
@@ -42,8 +42,13 @@ export default function LayoutsPage() {
     router.push(`/newsletters/${nl.id}/content`);
   }
 
+  useLeaveFinishedWizard(nl?.status);
+
   if (!nl && !error) return <p className="muted">Loading…</p>;
   if (!nl) return <p className="error">{error}</p>;
+  if (nl.status === "sent") {
+    return <p className="muted">This issue is sent. Opening the dashboard…</p>;
+  }
 
   return (
     <div className="stack">

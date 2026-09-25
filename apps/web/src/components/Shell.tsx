@@ -1,19 +1,97 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { getRole, setRole, type Role } from "@/lib/api";
+import { api } from "@/lib/api";
+
+function profileComplete(user: { mailchimp_email?: string | null; slack_email?: string | null; ai_tool?: string | null }) {
+  return Boolean(
+    user.mailchimp_email &&
+      user.slack_email &&
+      (user.ai_tool === "claude" || user.ai_tool === "cursor")
+  );
+}
 
 export function Shell({ children }: { children: React.ReactNode }) {
-  const [role, setRoleState] = useState<Role>("bader");
+  const pathname = usePathname();
+  const router = useRouter();
+  const leadReview = pathname.startsWith("/r/");
+  const [gate, setGate] = useState<"loading" | "ok" | "signup" | "login">("loading");
+  const [accountEmail, setAccountEmail] = useState("");
 
   useEffect(() => {
-    setRoleState(getRole());
-  }, []);
+    if (leadReview) {
+      setGate("ok");
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const status = await api.authStatus();
+        if (cancelled) return;
+        if (!status.password_set) {
+          if (pathname !== "/signup") {
+            setGate("signup");
+            router.replace("/signup");
+            return;
+          }
+          setGate("ok");
+          return;
+        }
+        try {
+          const user = await api.me();
+          if (cancelled) return;
+          setAccountEmail(user.email);
+          if (!profileComplete(user) && pathname !== "/signup") {
+            setGate("signup");
+            router.replace("/signup");
+            return;
+          }
+          setGate("ok");
+        } catch {
+          if (cancelled) return;
+          if (pathname !== "/login" && pathname !== "/signup") {
+            setGate("login");
+            router.replace("/login");
+            return;
+          }
+          setGate("ok");
+        }
+      } catch {
+        if (!cancelled) setGate("ok");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [leadReview, pathname, router]);
 
-  function switchRole(next: Role) {
-    setRole(next);
-    setRoleState(next);
+  async function logout() {
+    await api.logout().catch(() => {});
+    setAccountEmail("");
+    router.replace("/login");
+  }
+
+  if (leadReview) {
+    return (
+      <div className="shell">
+        <header className="topbar">
+          <span className="brand">Newsletter review</span>
+        </header>
+        <main className="main">{children}</main>
+      </div>
+    );
+  }
+
+  if (gate !== "ok") {
+    return (
+      <div className="shell">
+        <main className="main">
+          <p className="muted">Loading…</p>
+        </main>
+      </div>
+    );
   }
 
   return (
@@ -29,26 +107,25 @@ export function Shell({ children }: { children: React.ReactNode }) {
           <Link href="/settings/premium">Premium</Link>
         </nav>
         <div className="role-switch">
-          <span>Acting as</span>
-          <button
-            type="button"
-            className={role === "bader" ? "active" : ""}
-            onClick={() => switchRole("bader")}
-          >
-            Bader
-          </button>
-          <button
-            type="button"
-            className={role === "lead" ? "active" : ""}
-            onClick={() => switchRole("lead")}
-          >
-            Lead
-          </button>
+          <span>{accountEmail || "Bader"}</span>
+          {accountEmail && (
+            <button type="button" onClick={logout}>
+              Log out
+            </button>
+          )}
         </div>
       </header>
       <main className="main">{children}</main>
     </div>
   );
+}
+
+export function useLeaveFinishedWizard(status: string | undefined) {
+  const router = useRouter();
+  useEffect(() => {
+    if (status !== "sent") return;
+    router.replace("/");
+  }, [status, router]);
 }
 
 export function WizardNav({
@@ -58,6 +135,10 @@ export function WizardNav({
   id: string;
   step: "layouts" | "content" | "chrome" | "preview" | "review" | "send";
 }) {
+  useEffect(() => {
+    api.updateNewsletter(id, { last_step: step }).catch(() => {});
+  }, [id, step]);
+
   const steps = [
     { key: "layouts", href: `/newsletters/${id}/layouts`, label: "Layouts" },
     { key: "content", href: `/newsletters/${id}/content`, label: "Content" },

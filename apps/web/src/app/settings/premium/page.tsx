@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { api, type Workspace } from "@/lib/api";
+import { VoiceControl } from "@/components/VoiceControl";
 
 export default function PremiumSettingsPage() {
   const [ws, setWs] = useState<Workspace | null>(null);
@@ -74,35 +75,42 @@ export default function PremiumSettingsPage() {
           Provider
           <select
             disabled={!premium || busy}
-            value={ws.ai_provider || "openai"}
+            value={ws.ai_provider === "cursor" ? "cursor" : "claude"}
             onChange={(e) => setWs({ ...ws, ai_provider: e.target.value })}
           >
-            <option value="openai">OpenAI</option>
-            <option value="mock">Mock (demo)</option>
-          </select>
-        </label>
-        <label>
-          Model
-          <select
-            disabled={!premium || busy}
-            value={ws.ai_model || "gpt-4o-mini"}
-            onChange={(e) => setWs({ ...ws, ai_model: e.target.value })}
-          >
-            <option value="gpt-4o-mini">gpt-4o-mini</option>
-            <option value="gpt-4o">gpt-4o</option>
-            <option value="gpt-4.1-mini">gpt-4.1-mini</option>
+            <option value="claude">Claude</option>
+            <option value="cursor">Cursor</option>
           </select>
         </label>
         <button
           type="button"
           className="primary"
           disabled={!premium || busy}
-          onClick={() =>
-            save({
-              ai_provider: ws.ai_provider,
-              ai_model: ws.ai_model,
-            })
-          }
+          onClick={async () => {
+            const tool = ws.ai_provider === "cursor" ? "cursor" : "claude";
+            setBusy(true);
+            setError("");
+            try {
+              const user = await api.me();
+              if (user.mailchimp_email && user.slack_email) {
+                await api.updateProfile({
+                  mailchimp_email: user.mailchimp_email,
+                  slack_email: user.slack_email,
+                  ai_tool: tool,
+                });
+              }
+              const updated = await api.updateWorkspace({
+                ai_provider: tool,
+                ai_model: tool,
+              });
+              setWs(updated);
+              setMsg("Saved.");
+            } catch (e) {
+              setError(e instanceof Error ? e.message : "Save failed");
+            } finally {
+              setBusy(false);
+            }
+          }}
         >
           Save AI settings
         </button>
@@ -133,14 +141,19 @@ export default function PremiumSettingsPage() {
         </label>
         <label>
           Default background URL
-          <input
-            disabled={!premium || busy}
+          <VoiceControl
             value={ws.default_background_url || ""}
-            onChange={(e) =>
-              setWs({ ...ws, default_background_url: e.target.value })
-            }
-            placeholder="https://…"
-          />
+            onChange={(next) => setWs({ ...ws, default_background_url: next })}
+          >
+            <input
+              disabled={!premium || busy}
+              value={ws.default_background_url || ""}
+              onChange={(e) =>
+                setWs({ ...ws, default_background_url: e.target.value })
+              }
+              placeholder="https://…"
+            />
+          </VoiceControl>
         </label>
         <button
           type="button"
