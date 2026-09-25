@@ -4,6 +4,8 @@ Bader builds a newsletter in the browser. The lead gets an email with a link, th
 
 A new person can have the site open in about 15–30 minutes. The first Docker build is the slow part.
 
+A sent five-section issue, Monthly community letter (September 24, 2026), is in [exports/Monthly-community-letter.pdf](exports/Monthly-community-letter.pdf).
+
 ## What you need
 
 - A computer with [Docker Desktop](https://www.docker.com/products/docker-desktop/) installed and running
