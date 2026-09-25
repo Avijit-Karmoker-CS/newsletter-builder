@@ -1,0 +1,14 @@
+---
+description: Keep Newsletter Builder premium flows intact while helping Bader write and send.
+alwaysApply: true
+---
+
+# Premium newsletter
+
+Follow `.cursor/skills/newsletter-premium/SKILL.md` when the task touches copy, review, search, voice, Mailchimp, or API routes.
+
+Bader is the only signed-in user. The lead reviews from the email link. Do not put Slack back on the send path.
+
+Leave these working: five section types, verified search, voice on typed fields, pending / lead approved / lead denied, Mailchimp sync without emailing subscribers, and archive for sent issues.
+
+In `apps/api`, add `from __future__ import annotations` before using `str | None` so Python 3.9 still runs.
